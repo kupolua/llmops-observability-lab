@@ -1,9 +1,12 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import httpx
 from anthropic.types import TextBlock
 
-from lf_client.client import ClaudeClient
+from lf_client.client import ClaudeClient, _is_retryable
+
+from anthropic import APIStatusError
 
 
 @pytest.fixture
@@ -118,3 +121,50 @@ async def test_environment_defaults_to_dev(
 
     call_kwargs = mock_langfuse.update_current_span.call_args.kwargs
     assert call_kwargs["metadata"]["environment"] == "dev"
+
+
+def _make_api_error(status_code: int) -> APIStatusError:
+    """Helper: создать APIStatusError с нужным кодом."""
+    fake_request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+    class FakeResponse:
+        def __init__(self, code: int) -> None:
+            self.status_code = code
+            self.headers: dict[str, str] = {}
+            self.request = fake_request
+
+        def json(self) -> dict[str, str]:
+            return {"error": "test"}
+
+    return APIStatusError(
+        f"Status {status_code}",
+        response=FakeResponse(status_code),  # type: ignore[arg-type]
+        body=None,
+    )
+
+
+@pytest.mark.parametrize(
+    "status_code,expected",
+    [
+        (429, True),  # rate limit
+        (529, True),  # overloaded
+        (500, True),  # server error
+        (502, True),  # bad gateway
+        (503, True),  # service unavailable
+        (504, True),  # gateway timeout
+        (400, False),  # bad request - не ретраим
+        (401, False),  # unauthorized
+        (403, False),  # forbidden
+        (404, False),  # not found
+    ],
+)
+def test_is_retryable_status_codes(status_code: int, expected: bool) -> None:
+    error = _make_api_error(status_code)
+    assert _is_retryable(error) is expected
+
+
+def test_is_retryable_non_api_error() -> None:
+    """Обычные исключения не должны ретраиться."""
+    assert _is_retryable(ValueError("test")) is False
+    assert _is_retryable(KeyError("test")) is False
+    assert _is_retryable(RuntimeError("test")) is False

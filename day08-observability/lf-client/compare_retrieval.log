@@ -1,0 +1,72 @@
+======================================================================
+QUERY: How does prompt chaining work?
+======================================================================
+
+--- БЕЗ реранкера (только dense) ---
+  [1] dense=0.502  basic_workflows.ipynb / Basic Multi-LLM Workflows
+  [2] dense=0.462  evaluator_optimizer.ipynb / Evaluator-Optimizer Workflow > When to use this wo
+  [3] dense=0.443  tool_search_alternate_approaches.ipynb / Build system prompt with tool catalog
+
+--- С реранкером (dense top-20 → rerank top-3) ---
+  [1] rerank=0.664  tool_search_alternate_approaches.ipynb / Build system prompt with tool catalog > Example: W
+  [2] rerank=0.645  basic_workflows.ipynb / Basic Multi-LLM Workflows
+  [3] rerank=0.641  parallel_tools.ipynb / Parallel tool calls on Claude 3.7 Sonnet > Introdu
+
+======================================================================
+QUERY: When should I use parallel tool calls?
+======================================================================
+
+--- БЕЗ реранкера (только dense) ---
+  [1] dense=0.545  orchestrator_workers.ipynb / Orchestrator-Workers Workflow > Introduction > Whe
+  [2] dense=0.527  parallel_tools.ipynb / Parallel tool calls on Claude 3.7 Sonnet
+  [3] dense=0.490  orchestrator_workers.ipynb / Model configuration > Summary > Limitations & Cons
+
+--- С реранкером (dense top-20 → rerank top-3) ---
+  [1] rerank=0.738  parallel_tools.ipynb / Parallel tool calls on Claude 3.7 Sonnet > Perform
+  [2] rerank=0.691  parallel_tools.ipynb / Parallel tool calls on Claude 3.7 Sonnet
+  [3] rerank=0.676  parallel_tools.ipynb / Parallel tool calls on Claude 3.7 Sonnet > Perform
+
+======================================================================
+QUERY: Difference between evaluator-optimizer and orchestrator-workers?
+======================================================================
+
+--- БЕЗ реранкера (только dense) ---
+  [1] dense=0.467  orchestrator_workers.ipynb / Orchestrator-Workers Workflow > How It Works
+  [2] dense=0.452  README.md / Building Effective Agents Cookbook > Getting Start
+  [3] dense=0.439  orchestrator_workers.ipynb / Orchestrator-Workers Workflow > Introduction
+
+--- С реранкером (dense top-20 → rerank top-3) ---
+  [1] rerank=0.668  README.md / Building Effective Agents Cookbook > Getting Start
+  [2] rerank=0.621  orchestrator_workers.ipynb / Orchestrator-Workers Workflow > Introduction
+  [3] rerank=0.594  README.md / Building Effective Agents Cookbook
+
+======================================================================
+QUERY: How to validate JSON output from Claude?
+======================================================================
+
+--- БЕЗ реранкера (только dense) ---
+  [1] dense=0.520  extracting_structured_json.ipynb / Extracting Structured JSON using Claude and Tool U
+  [2] dense=0.515  extracting_structured_json.ipynb / Extracting Structured JSON using Claude and Tool U
+  [3] dense=0.508  CLAUDE.md / Edit .env and add your ANTHROPIC_API_KEY > Slash C
+
+--- С реранкером (dense top-20 → rerank top-3) ---
+  [1] rerank=0.676  README.md / Claude Cookbooks > Table of recipes > Advanced Tec
+  [2] rerank=0.660  extracting_structured_json.ipynb / Extracting Structured JSON using Claude and Tool U
+  [3] rerank=0.637  extracting_structured_json.ipynb / Extracting Structured JSON using Claude and Tool U
+
+======================================================================
+QUERY: What is tool_choice and when to use force?
+======================================================================
+
+--- БЕЗ реранкера (только dense) ---
+  [1] dense=0.447  tool_choice.ipynb / Tool choice
+  [2] dense=0.425  tool_choice.ipynb / Claude SHOULD use the tool for this: > Forcing a s
+  [3] dense=0.418  tool_choice.ipynb / Claude SHOULD use the tool for this: > Forcing a s
+
+--- С реранкером (dense top-20 → rerank top-3) ---
+  [1] rerank=0.816  tool_choice.ipynb / Tool choice
+  [2] rerank=0.734  tool_choice.ipynb / Claude SHOULD use the tool for this: > Forcing a s
+  [3] rerank=0.730  tool_choice.ipynb / Claude SHOULD use the tool for this: > Forcing a s
+
+
+Итого стоимость: $0.001150

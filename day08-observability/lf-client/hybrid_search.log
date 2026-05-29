@@ -1,0 +1,41 @@
+BM25 index: 154 chunks
+
+=== 'tool_choice force' (hybrid) ===
+  [1] rrf=0.0328, dense_rank=1, bm25_rank=1
+      tool_choice.ipynb / Tool choice
+      Tool use supports a parameter called `tool_choice` that allows you to specify how you want Claude to call tools. In this...
+  [2] rrf=0.0317, dense_rank=3, bm25_rank=3
+      tool_choice.ipynb / Claude SHOULD use the tool for this: > Forcing a s
+      In this first "bad" version of the `analyze_tweet_sentiment` function, we provide Claude with both tools. For the sake o...
+  [3] rrf=0.0315, dense_rank=2, bm25_rank=5
+      tool_choice.ipynb / Tool choice > Auto
+      Setting `tool_choice` to `auto` allows the model to automatically decide whether to use tools or not.  This is the defau...
+
+=== 'prompt chaining' (hybrid) ===
+  [1] rrf=0.0323, dense_rank=2, bm25_rank=2
+      basic_workflows.ipynb / Basic Multi-LLM Workflows
+      This notebook demonstrates three simple multi-LLM workflows. They trade off cost or latency for potentially improved tas...
+  [2] rrf=0.0315, dense_rank=4, bm25_rank=3
+      tool_choice.ipynb / Claude SHOULD use the tool for this: > Your Prompt
+      When working with `tool_choice` of `auto`, it's important that you spend time to write a detailed prompt.  Often, Claude...
+  [3] rrf=0.0310, dense_rank=3, bm25_rank=6
+      basic_workflows.ipynb / Basic Multi-LLM Workflows
+          print("Routing Analysis:")
+    print(reasoning)
+    print(f"\nSelected route: {route_key}")
+
+    # Process input wit...
+
+=== 'validate JSON output' (hybrid) ===
+  [1] rrf=0.0315, dense_rank=4, bm25_rank=3
+      extracting_structured_json.ipynb / Extracting Structured JSON using Claude and Tool U
+      In some cases you may not know the exact JSON object shape up front. In this example we provide an open ended `input_sch...
+  [2] rrf=0.0309, dense_rank=9, bm25_rank=1
+      extracting_structured_json.ipynb / Extracting Structured JSON using Claude and Tool U
+      In this cookbook, we'll explore various examples of using Claude and the tool use feature to extract structured JSON dat...
+  [3] rrf=0.0303, dense_rank=7, bm25_rank=5
+      CLAUDE.md / Edit .env and add your ANTHROPIC_API_KEY > Slash C
+      These commands are available in Claude Code and CI:
+
+- `/notebook-review` - Review notebook quality
+- `/model-check` - V...

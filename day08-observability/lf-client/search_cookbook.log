@@ -1,0 +1,161 @@
+
+=== How does prompt chaining work? ===
+
+  [1] score=0.501
+  source: patterns/agents/basic_workflows.ipynb
+  section: Basic Multi-LLM Workflows
+  text: This notebook demonstrates three simple multi-LLM workflows. They trade off cost or latency for potentially improved task performances:
+
+1. **Prompt-Chaining**: Decomposes a task into sequential subtasks, where each step builds on previous results
+2....
+
+  [2] score=0.462
+  source: patterns/agents/evaluator_optimizer.ipynb
+  section: Evaluator-Optimizer Workflow > When to use this workflow
+  text:         thoughts, result = generate(generator_prompt, task, context)
+        memory.append(result)
+        chain_of_thought.append({"thoughts": thoughts, "result": result})
+```...
+
+  [3] score=0.443
+  source: tool_use/tool_search_alternate_approaches.ipynb
+  section: Build system prompt with tool catalog
+  text: tool_names = list(TOOL_LIBRARY.keys())
+SYSTEM_PROMPT = f"""You are a helpful assistant with access to various tools.
+
+Available tools: {", ".join(tool_names)}
+
+Before using any tool, you must first call describe_tool with the tool name to load it."""...
+
+=== When should I use parallel tool calls? ===
+
+  [1] score=0.545
+  source: patterns/agents/orchestrator_workers.ipynb
+  section: Orchestrator-Workers Workflow > Introduction > When to use this workflow
+  text: This workflow is well-suited for complex tasks where you can't predict the subtasks needed in advance. The key difference from simple parallelization is its flexibility—subtasks aren't pre-defined, but determined by the orchestrator based on the spec...
+
+  [2] score=0.527
+  source: tool_use/parallel_tools.ipynb
+  section: Parallel tool calls on Claude 3.7 Sonnet
+  text: Claude 3.7 Sonnet may be less likely to make make parallel tool calls in a response, even when you have not set `disable_parallel_tool_use`. To work around this, we recommend introducing a "batch tool" that can act as a meta-tool to wrap invocations ...
+
+  [3] score=0.490
+  source: patterns/agents/orchestrator_workers.ipynb
+  section: Model configuration > Summary > Limitations & Considerations
+  text: **Cost & Latency:**
+- Requires N+1 LLM calls (1 orchestrator + N workers)
+- Sequential processing in this implementation (workers run one at a time)
+- For better performance, consider parallelizing worker calls with `asyncio` or thread pools
+
+**When ...
+
+=== Difference between evaluator-optimizer and orchestrator-workers? ===
+
+  [1] score=0.467
+  source: patterns/agents/orchestrator_workers.ipynb
+  section: Orchestrator-Workers Workflow > How It Works
+  text: The orchestrator-workers pattern operates in two phases:
+
+1. **Analysis & Planning Phase**: The orchestrator LLM receives the task and context, analyzes what approaches would be valuable, and generates structured subtask descriptions in XML format.
+
+...
+
+  [2] score=0.452
+  source: patterns/agents/README.md
+  section: Building Effective Agents Cookbook > Getting Started
+  text: See the Jupyter notebooks for detailed examples:
+
+- [Basic Workflows](basic_workflows.ipynb)
+- [Evaluator-Optimizer Workflow](evaluator_optimizer.ipynb) 
+- [Orchestrator-Workers Workflow](orchestrator_workers.ipynb)...
+
+  [3] score=0.439
+  source: patterns/agents/orchestrator_workers.ipynb
+  section: Orchestrator-Workers Workflow > Introduction
+  text: Have you ever needed multiple perspectives on the same task, but couldn't predict in advance which perspectives would be most valuable? The orchestrator-workers pattern solves this by having a central LLM analyze each unique task and dynamically dete...
+
+=== How to validate JSON output from Claude? ===
+
+  [1] score=0.520
+  source: tool_use/extracting_structured_json.ipynb
+  section: Extracting Structured JSON using Claude and Tool Use > Example 5: Working with unknown keys
+  text: In some cases you may not know the exact JSON object shape up front. In this example we provide an open ended `input_schema` and instruct Claude via prompting how to interact with the tool.
+
+```python
+tools = [
+    {
+        "name": "print_all_charac...
+
+  [2] score=0.515
+  source: tool_use/extracting_structured_json.ipynb
+  section: Extracting Structured JSON using Claude and Tool Use > Example 1: Article Summarization
+  text: In this example, we'll use Claude to generate a JSON summary of an article, including fields for the author, topics, summary, coherence score, persuasion score, and a counterpoint.
+
+```python
+tools = [
+    {
+        "name": "print_summary",
+        "...
+
+  [3] score=0.508
+  source: CLAUDE.md
+  section: Edit .env and add your ANTHROPIC_API_KEY > Slash Commands
+  text: These commands are available in Claude Code and CI:
+
+- `/notebook-review` - Review notebook quality
+- `/model-check` - Validate Claude model references
+- `/link-review` - Check links in changed files...
+
+=== What is tool_choice and when to use force? ===
+
+  [1] score=0.447
+  source: tool_use/tool_choice.ipynb
+  section: Tool choice
+  text: Tool use supports a parameter called `tool_choice` that allows you to specify how you want Claude to call tools. In this notebook, we'll take a look at how it works and when to use it. Before going any further, make sure you are comfortable with the ...
+
+  [2] score=0.425
+  source: tool_use/tool_choice.ipynb
+  section: Claude SHOULD use the tool for this: > Forcing a specific tool
+  text: In this first "bad" version of the `analyze_tweet_sentiment` function, we provide Claude with both tools. For the sake of comparison, we'll start by setting tool_choice to "auto":
+
+```py
+tool_choice={"type": "auto"}
+```
+
+Please note that we are delib...
+
+  [3] score=0.418
+  source: tool_use/tool_choice.ipynb
+  section: Claude SHOULD use the tool for this: > Forcing a specific tool
+  text: We can force Claude to use a particular tool using `tool_choice`.  In the example below, we've defined two simple tools: 
+* `print_sentiment_scores` - a tool that "tricks" Claude into generating well-structured JSON output containing sentiment analys...
+
+
+============================================================
+ПОИСК С ФИЛЬТРОМ — только в tool_use/
+============================================================
+
+=== Claude tools (filter: category=tool_use) ===
+
+  [1] score=0.602
+  source: tool_use/tool_search_alternate_approaches.ipynb
+  section: Tool Search: Alternate Approaches
+  text: **Recommend first reading see the cookbook: Tool Search with Embeddings.**
+
+The goal of this cookbook is to show of some alternate approaches to using tool search (or really "tool discovery") with Claude. In this cookbook we'll demonstrate two useful...
+
+  [2] score=0.599
+  source: tool_use/tool_search_alternate_approaches.ipynb
+  section: Build system prompt with tool catalog > Example: Multi-Tool Query
+  text: Claude can load multiple tools as needed:
+
+```python
+run_conversation("Convert $100 to EUR, then calculate a 20% tip on a $85 dinner bill.")
+```...
+
+  [3] score=0.598
+  source: tool_use/tool_search_alternate_approaches.ipynb
+  section: Tool Search: Alternate Approaches > The `describe_tool` Tool
+  text: Instead of semantic search, we give Claude a simple `describe_tool` tool. Claude calls this with a tool name to load that tool into context.
+
+The system prompt lists all available tool names, so Claude knows what's available without needing embedding...

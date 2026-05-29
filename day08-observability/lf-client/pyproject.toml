@@ -6,9 +6,15 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.104.1",
+    "nbformat>=5.10.4",
     "numpy>=2.4.6",
+    "openai>=2.38.0",
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
+    "qdrant-client>=1.18.0",
+    "rank-bm25>=0.2.2",
+    "tenacity>=9.1.4",
+    "tiktoken>=0.13.0",
     "voyageai>=0.3.7",
 ]
 
@@ -47,3 +53,14 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "tests.*"
 disable_error_code = ["method-assign"]
+
+[[tool.mypy.overrides]]
+module = "nbformat.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rank_bm25.*"
+ignore_missing_imports = true
+
+[tool.ruff]
+extend-exclude = ["data"]
