@@ -8,7 +8,7 @@ This repository is a hands-on lab for building production-ready LLM systems from
 
 ## Highlights
 
-- **35+ pytest tests** across reliability, retrieval, and metrics modules
+- **45+ pytest tests** across reliability, retrieval, and metrics modules
 - **mypy strict** across the entire codebase
 - **4 retrieval strategies empirically compared** with hand-labeled ground truth
 - **Self-hosted observability stack** (Langfuse + Qdrant) via Docker Compose
@@ -197,6 +197,41 @@ Planned next steps:
 - Query router (rule-based or LLM-based) to choose retrieval strategy per query type
 - Grounded generation with citation and confidence threshold (refuse-to-answer for unanswerable queries)
 - Larger evaluation dataset
+
+---
+
+## Visual overview
+
+### Langfuse — distributed tracing with cost tracking
+![Langfuse trace example](docs/images/langfuse-trace.png)
+
+### Qdrant — vector database dashboard
+![Qdrant collection view](docs/images/qdrant-collection.png)
+
+### Qdrant — vector collection points
+![Qdrant collection view](docs/images/qdrant-collection-points.png)
+
+### Empirical retrieval evaluation
+![Evaluation results in terminal](docs/images/eval-results-terminal.png)
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    User[User Query] --> Router{Query Router}
+    Router -->|simple| Dense[Dense Retrieval<br/>Voyage + Qdrant]
+    Router -->|exact term| Hybrid[Hybrid<br/>Dense + BM25 RRF]
+    Router -->|compositional| Multi[Multi-Query<br/>day 20]
+    Dense --> Reranker[Reranker<br/>Voyage rerank-2]
+    Hybrid --> Reranker
+    Reranker --> Claude[Claude Sonnet<br/>grounded generation]
+    Claude --> Response[Response + citations]
+    
+    Claude -.->|traces| Langfuse[Langfuse]
+    Dense -.->|traces| Langfuse
+```
 
 ---
 
