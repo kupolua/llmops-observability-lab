@@ -203,10 +203,7 @@ Planned next steps:
 ## Visual overview
 
 ### Langfuse — distributed tracing with cost tracking
-![Langfuse trace example](docs/images/langfuse-trace.png)
-
-### Qdrant — vector database dashboard
-![Qdrant collection view](docs/images/qdrant-collection.png)
+![Langfuse dashboard showing distributed traces of resilient retry sessions](docs/images/langfuse-trace.png)
 
 ### Qdrant — vector collection points
 ![Qdrant collection view](docs/images/qdrant-collection-points.png)
