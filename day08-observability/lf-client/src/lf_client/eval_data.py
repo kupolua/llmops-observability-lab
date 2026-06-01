@@ -40,8 +40,15 @@ EVAL_DATASET: list[EvalQuery] = [
     ),
     EvalQuery(
         query="When should I use parallel tool calls?",
-        is_unanswerable=True,
-        note="Cookbook describes HOW to use parallel tools, not WHEN",
+        relevant=[
+            GroundTruthRelevant(
+                file_suffix="parallel_tools.ipynb",
+                section_prefix="Performing a query with multiple tool calls",
+            ),
+            # Возможно ещё одна секция — посмотри полную структуру файла
+        ],
+        is_unanswerable=False,  # ← было True
+        note="Cookbook explains WHEN through a back-and-forth example",
     ),
     EvalQuery(
         query="Difference between evaluator-optimizer and orchestrator-workers?",

@@ -1,0 +1,48 @@
+
+============================================================
+QUERY: How does prompt chaining work?
+============================================================
+ANSWER: Based on the provided context, prompt chaining works by decomposing a task into sequential subtasks, where each step builds on previous results [2]. 
+
+The implementation shows that it chains multiple LLM calls sequentially, passing results between steps [2]. Specifically, it takes an input and a list of prompts, then iterates through each prompt, passing the result from one step as input to the next step [2].
+
+Sources used: ['tool_use/tool_search_alternate_approaches.ipynb', 'patterns/agents/basic_workflows.ipynb', 'tool_use/parallel_tools.ipynb']
+Top confidence: 0.664
+
+============================================================
+QUERY: When should I use parallel tool calls?
+============================================================
+ANSWER: Based on the provided context, parallel tool calls can help you avoid wasteful "back and forth" interactions with Claude [3]. 
+
+The context shows an example where a user asks "What's the weather and time in San Francisco?" but Claude returns only a single tool call for weather initially, even though both pieces of information were requested [3]. After processing that result, Claude then makes a second tool call to get the time [3]. 
+
+The context notes that "while this technically happened immediately, this is potentially wasteful because it required 'back and forth' – first Claude asked for the weather, then we had to process it, and _then_ Claude asked for the time, and now we have to process _that_" [3].
+
+Therefore, you should use parallel tool calls when you want to encourage Claude to make multiple related tool calls simultaneously so you can process them at the same time, rather than having to handle them sequentially [3].
+
+However, the context also indicates that Claude 3.7 Sonnet may be less likely to make parallel tool calls even when parallel tool use is not disabled, and recommends using a "batch tool" workaround [2].
+
+Sources used: ['tool_use/parallel_tools.ipynb', 'tool_use/parallel_tools.ipynb', 'tool_use/parallel_tools.ipynb']
+Top confidence: 0.738
+
+============================================================
+QUERY: What is tool_choice and when to use force?
+============================================================
+ANSWER: Based on the provided context, `tool_choice` is a parameter in Claude's tool use functionality that allows you to specify how Claude should call tools [1].
+
+There are three possible options for `tool_choice` [1]:
+
+1. **`auto`** - allows Claude to decide whether to call any provided tools or not
+2. **`tool`** - allows you to force Claude to always use a particular tool
+3. **`any`** - tells Claude that it must use one of the provided tools, but doesn't force a particular tool
+
+**When to use force:** You should force a specific tool (using `{"type": "tool", "name": "tool_name"}`) when you want Claude to **always** use that particular tool [2]. The context shows an example where forcing tool use is helpful: when Claude wasn't consistently using the sentiment analysis tool with `auto` mode (sometimes not calling it at all or calling the wrong tool like the calculator), forcing the specific tool with `tool_choice={"type": "tool", "name": "print_sentiment_scores"}` ensured Claude would always use the desired sentiment analysis tool [2].
+
+When using the `tool` type, you must provide both the type set to `tool` and specify the particular tool name [2].
+
+Sources used: ['tool_use/tool_choice.ipynb', 'tool_use/tool_choice.ipynb', 'tool_use/tool_choice.ipynb']
+Top confidence: 0.816
+
+============================================================
+LLM cost: $0.022596 (3 calls)
+Retrieval cost: $0.000727
