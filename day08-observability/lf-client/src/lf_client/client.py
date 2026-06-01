@@ -1,6 +1,14 @@
 from dataclasses import dataclass
+from typing import Any
 from anthropic import AsyncAnthropic
-from anthropic.types import Message, TextBlock, MessageParam, TextBlockParam
+from anthropic.types import (
+    Message,
+    TextBlock,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolUseBlock,
+)
 from lf_client.usage import CallCost, calculate_cost
 from langfuse import Langfuse
 from anthropic import APIStatusError
@@ -23,6 +31,19 @@ class CallResult:
     """Результат одного вызова Claude."""
 
     text: str
+    raw: Message
+    cost: CallCost
+
+
+@dataclass
+class ToolCallResult:
+    """Результат вызова Claude с принудительным tool_use.
+
+    tool_input — провалидированный моделью JSON (аргументы инструмента).
+    Это структурированный выход, а не свободный текст: парсить нечего.
+    """
+
+    tool_input: dict[str, Any]
     raw: Message
     cost: CallCost
 
@@ -165,6 +186,119 @@ class ClaudeClient:
                     self._call_count += 1
 
                     return CallResult(text=text, raw=response, cost=cost)
+
+                except Exception as e:
+                    generation.update(level="ERROR", status_message=str(e))
+                    root_span.update(level="ERROR", status_message=str(e))
+                    raise
+
+    async def ask_tool(
+        self,
+        prompt: str,
+        tools: list[ToolParam],
+        tool_name: str,
+        max_tokens: int = 1024,
+        system: str | None = None,
+        trace_name: str = "claude-tool",
+        user_id: str | None = None,
+        session_id: str | None = None,
+        tags: list[str] | None = None,
+        environment: str = "dev",
+        max_retries: int = 3,
+    ) -> ToolCallResult:
+        """Вызов с принудительным tool_use → структурированный JSON-выход.
+
+        В отличие от ask(), здесь tool_choice заставляет Claude вызвать
+        конкретный инструмент tool_name. Возвращаем его аргументы (input)
+        как dict — это надёжнее, чем парсить свободный текст.
+
+        Та же обвязка, что и у ask(): один общий span + generation в
+        Langfuse, retry на временных ошибках, учёт стоимости.
+        """
+        messages: list[MessageParam] = [{"role": "user", "content": prompt}]
+
+        with self._langfuse.start_as_current_observation(
+            as_type="span",
+            name=trace_name,
+            input=prompt,
+        ) as root_span:
+            self._langfuse.update_current_span(
+                metadata={
+                    "environment": environment,
+                    "user_id": user_id,
+                    "session_id": session_id,
+                    "tags": tags or [],
+                    "system": system,
+                    "tool_name": tool_name,
+                    "max_retries": max_retries,
+                },
+            )
+
+            with self._langfuse.start_as_current_observation(
+                as_type="generation",
+                name=f"{trace_name}-llm",
+                model=self._model,
+                input=messages,
+            ) as generation:
+                attempt_num = 0
+                try:
+                    async for attempt in AsyncRetrying(
+                        stop=stop_after_attempt(max_retries + 1),
+                        wait=wait_exponential_jitter(initial=1, max=10, jitter=2),
+                        retry=retry_if_exception(_is_retryable),
+                        reraise=True,
+                    ):
+                        with attempt:
+                            attempt_num = attempt.retry_state.attempt_number
+                            create_kwargs: dict[str, Any] = {
+                                "model": self._model,
+                                "max_tokens": max_tokens,
+                                "messages": messages,
+                                "tools": tools,
+                                "tool_choice": {"type": "tool", "name": tool_name},
+                            }
+                            if system is not None:
+                                create_kwargs["system"] = system
+                            response = await self._client.messages.create(
+                                **create_kwargs
+                            )
+
+                    # Ищем блок tool_use с нужным именем.
+                    tool_input: dict[str, Any] | None = None
+                    for block in response.content:
+                        if isinstance(block, ToolUseBlock) and block.name == tool_name:
+                            # block.input типизирован как object — это JSON-объект
+                            # инструмента; приводим к dict для удобства.
+                            if isinstance(block.input, dict):
+                                tool_input = block.input
+                            break
+
+                    if tool_input is None:
+                        raise ValueError(
+                            f"Expected tool_use block '{tool_name}', "
+                            f"got: {[type(b).__name__ for b in response.content]}"
+                        )
+
+                    cost = calculate_cost(response.usage)
+
+                    generation.update(
+                        output=tool_input,
+                        usage_details={
+                            "input": response.usage.input_tokens,
+                            "output": response.usage.output_tokens,
+                        },
+                        metadata={"attempts": attempt_num},
+                    )
+                    root_span.update(
+                        output=tool_input, metadata={"attempts": attempt_num}
+                    )
+
+                    self._total_cost += cost.total_cost_usd
+                    self._call_count += 1
+
+                    return ToolCallResult(
+                        tool_input=tool_input, raw=response, cost=cost
+                    )
 
                 except Exception as e:
                     generation.update(level="ERROR", status_message=str(e))

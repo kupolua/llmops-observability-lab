@@ -43,11 +43,15 @@ EVAL_DATASET: list[EvalQuery] = [
         relevant=[
             GroundTruthRelevant(
                 file_suffix="parallel_tools.ipynb",
-                section_prefix="Performing a query with multiple tool calls",
+                # section_path в корпусе: "Parallel tool calls on Claude 3.7
+                # Sonnet > Performing a query with multiple tool calls".
+                # Матчинг идёт через startswith, поэтому prefix должен
+                # включать корневую секцию, иначе не совпадёт (рейтинг был
+                # NOT FOUND, хотя чанк реально на rank 1).
+                section_prefix="Parallel tool calls on Claude 3.7 Sonnet",
             ),
-            # Возможно ещё одна секция — посмотри полную структуру файла
         ],
-        is_unanswerable=False,  # ← было True
+        is_unanswerable=False,  # ← было True (переразметка, день 19)
         note="Cookbook explains WHEN through a back-and-forth example",
     ),
     EvalQuery(

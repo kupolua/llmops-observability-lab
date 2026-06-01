@@ -5,10 +5,16 @@
 2. dense + rerank
 3. hybrid (dense + BM25 via RRF)
 4. hybrid + rerank
+5. multi-query + rerank (декомпозиция compositional-запросов)
 """
 
-from dotenv import load_dotenv
+import asyncio
+import os
 
+from dotenv import load_dotenv
+from langfuse import get_client
+
+from lf_client.client import ClaudeClient
 from lf_client.eval_data import EVAL_DATASET
 from lf_client.eval_metrics import (
     QueryEvalResult,
@@ -17,6 +23,8 @@ from lf_client.eval_metrics import (
     summarize_strategy,
 )
 from lf_client.hybrid_search import HybridResult, HybridSearcher
+from lf_client.multi_query_retrieval import MultiQueryRetriever
+from lf_client.query_decomposer import QueryDecomposer
 from lf_client.retrieval import RetrievedChunk, TwoStageRetriever
 
 load_dotenv()
@@ -38,6 +46,20 @@ def hybrid_to_retrieved(results: list[HybridResult]) -> list[RetrievedChunk]:
         )
         for r in results
     ]
+
+
+def multiquery_to_retrieved(
+    multi: MultiQueryRetriever, query: str
+) -> list[RetrievedChunk]:
+    """Адаптер MultiQueryRetriever → list[RetrievedChunk] (общий интерфейс).
+
+    Тот же interface unification, что и в блоке 4: retrieve у multi-query
+    асинхронный и отдаёт MultiQueryResult, а метрикам нужен плоский список
+    чанков. Гоняем корутину через asyncio.run (eval_runner синхронный) и
+    достаём result.chunks.
+    """
+    result = asyncio.run(multi.retrieve(query))
+    return result.chunks
 
 
 def evaluate_strategy(
@@ -62,12 +84,29 @@ def main() -> None:
     two_stage = TwoStageRetriever()
     hybrid = HybridSearcher()
 
+    # Стратегия 5 нужен LLM-decomposer → строим ClaudeClient + multi-query
+    # retriever рядом. final_top_k=K, чтобы выдача была сопоставима с
+    # остальными стратегиями (метрики всё равно режут до top-K).
+    langfuse = get_client()
+    client = ClaudeClient(
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+        langfuse=langfuse,
+    )
+    decomposer = QueryDecomposer(client=client)
+    multi = MultiQueryRetriever(
+        two_stage,
+        decomposer,
+        top_k_per_subquery=K,
+        final_top_k=K,
+    )
+
     # Прогоняем все запросы по всем стратегиям
     strategies: dict[str, dict[str, list[RetrievedChunk]]] = {
         "1. dense only": {},
         "2. dense + rerank": {},
         "3. hybrid (RRF)": {},
         "4. hybrid + rerank": {},
+        "5. multi-query + rerank": {},
     }
 
     for eval_q in EVAL_DATASET:
@@ -97,6 +136,9 @@ def main() -> None:
                 q, top_k=K, top_n_per_method=TOP_N_CANDIDATES, use_rerank=True
             )
         )
+
+        # Strategy 5: multi-query + rerank (декомпозиция → merge → rerank)
+        strategies["5. multi-query + rerank"][q] = multiquery_to_retrieved(multi, q)
 
     # Считаем метрики по каждой стратегии
     summaries: list[StrategyEvalSummary] = []
@@ -143,6 +185,13 @@ def main() -> None:
                 f"prec={r.precision_at_k:.2f}  "
                 f"{rank_str}"
             )
+
+    print(f"\n{'=' * 70}")
+    print(
+        f"LLM cost (decomposer): ${client.total_cost_usd:.6f} "
+        f"({client.call_count} calls)"
+    )
+    langfuse.flush()
 
 
 if __name__ == "__main__":

@@ -1,7 +1,13 @@
 # RAG Retrieval Evaluation Results
 
-Empirical comparison of 4 retrieval strategies on a technical documentation corpus.
+Empirical comparison of retrieval strategies on a technical documentation corpus.
 Hand-labeled ground truth, custom metrics implementation.
+
+> **v2 update (Day 20):** added a 5th strategy (multi-query + rerank), re-labeled
+> Q2 as answerable, and fixed a ground-truth matching bug. The v1 report below
+> (4 strategies) is preserved as-is; the v2 results and the **falsified
+> multi-query hypothesis** are documented in [v2 Evaluation](#v2-evaluation-day-20-multi-query-strategy--ground-truth-corrections)
+> at the end of this file.
 
 ---
 
@@ -263,3 +269,134 @@ In priority order:
 3. **Grounded generation with confidence threshold** — wire retrieval into Claude with explicit "refuse to answer if no relevant chunk above threshold" logic.
 4. **Larger evaluation set** — 50+ queries across categories, with second annotator for agreement measurement.
 5. **Latency benchmarks** — add p50/p95 latency per strategy alongside quality metrics.
+
+> Next-step #1 was implemented and measured in v2 below — and the prediction
+> ("should raise Q3 recall toward 1.0") **did not hold**. See the diagnosis.
+
+---
+
+## v2 Evaluation (Day 20): multi-query strategy + ground-truth corrections
+
+This round implemented Next-step #1 (multi-query retrieval) and re-ran the full
+suite. The headline is a **negative result**: multi-query did **not** beat the
+simpler strategies on this corpus. It is recorded honestly here rather than
+quietly dropped — the failure is more informative than the hoped-for win.
+
+### What changed since v1
+
+1. **New strategy: `5. multi-query + rerank`.** Pipeline: `QueryDecomposer` (LLM
+   classifies the query as compositional and splits it) → retrieve each
+   sub-query separately (`top_k_per_subquery=3`) → dedup by `(source,
+   section_path)` → **rerank the merged pool by the original query** →
+   `final_top_k=3`. Non-compositional queries fall through to a single
+   dense+rerank pass, so the strategy is a strict superset of `2. dense + rerank`.
+2. **Q2 re-labeled answerable.** "When should I use parallel tool calls?" was
+   `is_unanswerable=True` in v1. Day-19 decision: the cookbook *does* explain the
+   *when* through a back-and-forth example, so it is now answerable with ground
+   truth in `parallel_tools.ipynb`.
+3. **Ground-truth matching bug fixed (found during this run).** The Q2 marker was
+   first written with `section_prefix="Performing a query with multiple tool
+   calls"`. Matching is `section_path.startswith(prefix)`, but the real
+   `section_path` is `"Parallel tool calls on Claude 3.7 Sonnet > Performing a
+   query with multiple tool calls"` — so the prefix never matched and **every
+   strategy showed Q2 as NOT FOUND even though the chunk is retrieved at rank
+   1.** With the buggy marker the average recall@3 read 0.600 across the board;
+   after correcting the prefix to the root section `"Parallel tool calls on
+   Claude 3.7 Sonnet"`, Q2 correctly scores recall 1.0. The numbers below use
+   the corrected marker.
+
+### v2 TL;DR
+
+| Strategy | Recall@3 | Precision@3 | MRR |
+|---|---|---|---|
+| Dense only | 0.800 | 0.467 | **0.900** |
+| Dense + reranker | 0.800 | **0.533** | 0.700 |
+| Hybrid (RRF) | 0.800 | 0.467 | **0.900** |
+| Hybrid + reranker | 0.800 | **0.533** | 0.700 |
+| **Multi-query + reranker** | 0.800 | 0.533 | 0.700 |
+
+**All five strategies tie on recall@3 (0.800).** Multi-query is byte-for-byte
+identical to `dense + reranker` on every metric — it found nothing the simpler
+strategies missed. Decomposer cost for the run: **$0.022 over 5 LLM calls** (one
+decomposition per query), buying zero recall improvement.
+
+### Hypothesis check: did multi-query lift Q3 to 1.0? **No.**
+
+Q3 ("Difference between evaluator-optimizer and orchestrator-workers?") stayed at
+**recall 0.50** under multi-query — identical to every single-pass strategy. The
+decomposition itself worked perfectly; the *merge* step threw the win away:
+
+1. Routing was correct: `is_compositional=True`, sub-queries `["What is
+   evaluator-optimizer pattern?", "What is orchestrator-workers pattern?"]`,
+   3 chunks each.
+2. The relevant `evaluator_optimizer.ipynb` chunk **did reach the candidate
+   pool** — it ranks #3 in its own sub-query. So both ground-truth chunks were
+   present in the 6-chunk merged set.
+3. **The final rerank-by-original-query demoted it back out of the top-3.**
+   Reranking the merged pool against the full "difference between X and Y" query
+   produced:
+
+   ```
+   [1] 0.668  patterns/agents/README.md
+   [2] 0.621  patterns/agents/orchestrator_workers.ipynb   ← only this matches GT
+   [3] 0.594  patterns/agents/README.md
+   ```
+
+   The evaluator chunk fell below rank 3. The final rerank **re-applied exactly
+   the single-query bias multi-query was supposed to escape**, and broad
+   `README.md` overview chunks crowded out both topic-specific `.ipynb` chunks.
+
+**Conclusion:** the bottleneck for compositional queries on this corpus is not
+retrieval *breadth* (decomposition fixed that) but the *merge/ranking* step.
+Pulling diverse candidates and then ranking them all by the original
+compositional query collapses the diversity right before top-k truncation.
+
+### Other per-query notes (v2)
+
+- **Q1 (prompt chaining):** `is_compositional=False` → multi-query passes through
+  to a single pass and is identical to baseline (recall 1.0, rank 2). Routing on
+  simple queries behaves correctly.
+- **Q2 (parallel tools, now answerable):** retrieved at rank 1 by dense; recall
+  1.0 across all strategies after the marker fix. Note the eval set **no longer
+  contains an unanswerable query** — the refuse-to-answer behavior that Q2 tested
+  in v1 is now uncovered by the dataset (see limitations).
+- **Q5 (tool_choice, 2 sections one file):** still 0.50 everywhere — a chunking
+  artifact, unchanged from v1 and unaffected by multi-query.
+
+### Why the average is 0.800
+
+`(Q1 1.0 + Q2 1.0 + Q3 0.5 + Q4 1.0 + Q5 0.5) / 5 = 0.800`. The two 0.5s (Q3
+compositional, Q5 multi-section) remain the ceiling. Multi-query was the
+intended fix for Q3 and did not move it.
+
+### Candidate fixes (not implemented — would be a v3)
+
+The diagnosis points at the merge step, not the decomposition:
+
+- **Interleave instead of re-rank.** Round-robin the top result of each
+  sub-query into the final list, preserving per-concept representation, rather
+  than reranking the whole pool by the original query.
+- **Per-concept quota.** Reserve ≥1 of the final-k slots per sub-query so one
+  dominant concept can't take all 3 slots.
+- **Rerank each sub-query by its own sub-query**, then merge — keeps each
+  concept's best chunk scored on the question it actually answers.
+- **Filter navigation/overview chunks** (e.g. `README.md` tables of contents)
+  before the final ranking; they repeatedly crowd out topic chunks (also seen in
+  v1 Q1/Q4).
+
+### Revised production decision
+
+No change from v1. Multi-query adds an LLM call per query and delivers **no
+recall improvement** on this corpus, so it stays out of the default path.
+Dense-only (or dense+rerank) remains the recommendation. Multi-query is worth
+revisiting **only with a diversity-preserving merge** (above) and, ideally, a
+larger compositional-query slice in the eval set to measure against.
+
+### v2 limitations (in addition to v1's)
+
+| Limitation | Implication |
+|---|---|
+| Only 1 compositional query (Q3) | The entire multi-query verdict rests on a single data point |
+| Eval set lost its unanswerable query (Q2 re-labeled) | Refuse-to-answer behavior is no longer measured by this dataset |
+| `final_top_k=3` to match k | A compositional query needing 2 concepts has only 3 slots, 1 of which overview chunks tend to take |
+| Decomposition quality not separately scored | We measure end-to-end recall, not whether sub-queries were optimal |

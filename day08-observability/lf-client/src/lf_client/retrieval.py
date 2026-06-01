@@ -89,6 +89,38 @@ class TwoStageRetriever:
             )
         return reranked
 
+    def rerank_chunks(
+        self,
+        query: str,
+        chunks: list[RetrievedChunk],
+        top_k: int = 5,
+    ) -> list[RetrievedChunk]:
+        """Переранжировать уже собранные чанки по запросу (без retrieval).
+
+        Нужно для multi-query: после сбора чанков от нескольких под-запросов
+        мы переранжируем их по ОРИГИНАЛЬНОму запросу. Переиспользует тот же
+        reranker, поэтому стоимость учитывается в total_cost_usd.
+        """
+        if not chunks:
+            return []
+
+        documents = [c.text for c in chunks]
+        rerank_results = self._reranker.rerank(query, documents, top_k=top_k)
+
+        reranked: list[RetrievedChunk] = []
+        for r in rerank_results:
+            candidate = chunks[r.index]
+            reranked.append(
+                RetrievedChunk(
+                    text=candidate.text,
+                    source=candidate.source,
+                    section_path=candidate.section_path,
+                    dense_score=candidate.dense_score,
+                    rerank_score=r.score,
+                )
+            )
+        return reranked
+
     @property
     def total_cost_usd(self) -> float:
         return round(self._embedder.total_cost_usd + self._reranker.total_cost_usd, 6)

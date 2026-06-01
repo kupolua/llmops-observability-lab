@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from langfuse import get_client
 
 from lf_client.client import ClaudeClient
+from lf_client.multi_query_retrieval import MultiQueryResult, MultiQueryRetriever
 from lf_client.retrieval import RetrievedChunk, TwoStageRetriever
 
 load_dotenv()
@@ -56,6 +57,9 @@ class GroundedAnswer:
     refusal_reason: str | None  # почему отказалась (None если ответила)
     chunks_used: list[RetrievedChunk]  # чанки, которые пошли в контекст
     top_confidence: float  # score top-1 чанка (для отладки)
+    # Метаданные retrieval'а, если использовался MultiQueryRetriever
+    # (subqueries, dedup-счётчики и т.д.). None для обычного retriever'а.
+    retrieval_meta: MultiQueryResult | None = None
 
 
 def _confidence(chunk: RetrievedChunk) -> float:
@@ -86,15 +90,22 @@ def _format_context(chunks: list[RetrievedChunk]) -> str:
 class GroundedGenerator:
     """RAG-пайплайн с заземлённой генерацией.
 
-    1. Retrieval через TwoStageRetriever
+    1. Retrieval через TwoStageRetriever ИЛИ MultiQueryRetriever
     2. Confidence check — если top-1 < threshold → refuse (без вызова LLM)
     3. Сборка промпта с пронумерованным контекстом для цитирования
     4. Generation через ClaudeClient (observability + retry «из коробки»)
+
+    Retriever полиморфен, но интерфейсы у двух реализаций разные:
+    - TwoStageRetriever.retrieve — синхронный, принимает top_k, отдаёт
+      list[RetrievedChunk];
+    - MultiQueryRetriever.retrieve — асинхронный, top_k не принимает (свой
+      final_top_k), отдаёт MultiQueryResult c полем .chunks.
+    Различия прячем в _retrieve_chunks, наружу — единый list[RetrievedChunk].
     """
 
     def __init__(
         self,
-        retriever: TwoStageRetriever,
+        retriever: TwoStageRetriever | MultiQueryRetriever,
         client: ClaudeClient,
         confidence_threshold: float = 0.4,
         top_k: int = 3,
@@ -104,14 +115,33 @@ class GroundedGenerator:
         self._confidence_threshold = confidence_threshold
         self._top_k = top_k
 
-    async def answer(self, query: str) -> GroundedAnswer:
-        """Полный pipeline: query → retrieved chunks → answer."""
-        # Stage 1: retrieval. Сам retrieve синхронный и ходит по сети
+    async def _retrieve_chunks(
+        self, query: str
+    ) -> tuple[list[RetrievedChunk], MultiQueryResult | None]:
+        """Нормализует разные retriever'ы к общему list[RetrievedChunk].
+
+        Вторым элементом возвращает метаданные multi-query retrieval'а
+        (subqueries, dedup-счётчики) — или None для обычного retriever'а.
+        """
+        if isinstance(self._retriever, MultiQueryRetriever):
+            # Уже асинхронный; top_k задаётся через его собственный
+            # final_top_k, поэтому наш self._top_k тут не применяется.
+            result = await self._retriever.retrieve(query)
+            return result.chunks, result
+
+        # TwoStageRetriever.retrieve синхронный и ходит по сети
         # (Qdrant + reranker), поэтому уводим его в поток, чтобы не
         # блокировать event loop.
         chunks = await asyncio.to_thread(
             self._retriever.retrieve, query, top_k=self._top_k
         )
+        return chunks, None
+
+    async def answer(self, query: str) -> GroundedAnswer:
+        """Полный pipeline: query → retrieved chunks → answer."""
+        # Stage 1: retrieval (см. _retrieve_chunks — прячет разницу
+        # между TwoStageRetriever и MultiQueryRetriever).
+        chunks, retrieval_meta = await self._retrieve_chunks(query)
 
         # Stage 2a: пустой retrieval — отказываемся сразу.
         if not chunks:
@@ -121,6 +151,7 @@ class GroundedGenerator:
                 refusal_reason="no_chunks_retrieved",
                 chunks_used=[],
                 top_confidence=0.0,
+                retrieval_meta=retrieval_meta,
             )
 
         # Stage 2b: confidence check ДО генерации.
@@ -135,6 +166,7 @@ class GroundedGenerator:
                 ),
                 chunks_used=[],
                 top_confidence=top_score,
+                retrieval_meta=retrieval_meta,
             )
 
         # Stage 3: сборка промпта с цитированием.
@@ -173,6 +205,7 @@ class GroundedGenerator:
             else None,
             chunks_used=chunks,
             top_confidence=top_score,
+            retrieval_meta=retrieval_meta,
         )
 
 
